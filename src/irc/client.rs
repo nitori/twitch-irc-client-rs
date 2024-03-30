@@ -17,12 +17,16 @@ impl fmt::Debug for Secret {
 #[derive(Debug)]
 pub struct Client {
     token: Secret,
+    nickname: String,
 }
 
 
 impl Client {
-    pub fn new(token: &String) -> Client {
-        Client { token: Secret { value: token.clone() } }
+    pub fn new(token: &str, nickname: &str) -> Client {
+        Client {
+            token: Secret { value: token.into() },
+            nickname: nickname.into(),
+        }
     }
 
     pub fn connect(&self) {
@@ -31,7 +35,7 @@ impl Client {
 
         stream.write("CAP REQ :twitch.tv/membership twitch.tv/tags twitch.tv/commands\r\n".as_bytes()).unwrap();
         stream.write(format!("PASS {}\r\n", self.token.value).as_bytes()).unwrap();
-        stream.write("NICK SaniSensei\r\n".as_bytes()).unwrap();
+        stream.write(format!("NICK {}\r\n", self.nickname).as_bytes()).unwrap();
 
 
         loop {
@@ -48,6 +52,11 @@ impl Client {
                     match parse_line(final_line) {
                         Ok(msg) => {
                             match msg.command {
+                                Command::Ping => {
+                                    stream.write(
+                                        format!("{}", msg.with_command(Command::Pong)).as_bytes()
+                                    ).unwrap();
+                                }
                                 Command::Ready => {
                                     stream.write("JOIN #bloodstainedvt\r\n".as_bytes()).unwrap();
                                 }

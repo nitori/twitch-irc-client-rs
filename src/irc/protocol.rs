@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::fmt::{Debug, Display, Formatter};
+use indexmap::IndexMap;
 
 type Result<T> = std::result::Result<T, ParseError>;
 
@@ -9,9 +10,11 @@ pub enum ParseError {
 }
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Command {
     Misc(String),
+    Ping,
+    Pong,
     // 001
     Ready,
     // 353
@@ -29,16 +32,36 @@ pub enum Command {
     RoomState,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Prefix {
     pub nick: Option<String>,
     pub user: Option<String>,
     pub host: Option<String>,
 }
 
-#[derive(Debug)]
+impl Display for Prefix {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+
+        if let Some(nick) = &self.nick {
+            s.push_str(nick);
+        }
+        if let Some(user) = &self.user {
+            s.push_str("!");
+            s.push_str(user);
+        }
+        if let Some(host) = &self.host {
+            s.push_str("@");
+            s.push_str(host);
+        }
+
+        write!(f, "{}", s)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Message {
-    pub tags: HashMap<String, String>,
+    pub tags: IndexMap<String, String>,
     pub prefix: Option<Prefix>,
     pub command: Command,
     pub params: Vec<String>,
@@ -56,11 +79,56 @@ impl Message {
             Some(nick)
         }
     }
+
+    pub fn with_command(&self, new_command: Command) -> Message {
+        Message {
+            tags: self.tags.clone(),
+            prefix: self.prefix.clone(),
+            command: new_command,
+            params: self.params.clone(),
+            _had_trailing: self._had_trailing,
+            _original_line: self._original_line.clone(),
+        }
+    }
 }
 
-fn extract_tags(line: &str) -> Result<(HashMap<String, String>, &str)> {
+impl Display for Message {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+
+        let tags = self.tags.iter().map(|(k, v)| {
+            format!("{}={}", k, v)
+        }).collect::<Vec<_>>().join(";");
+
+        if tags.len() > 0 {
+            s.push_str("@");
+            s.push_str(&tags);
+            s.push_str(" ");
+        }
+
+        if let Some(prefix) = &self.prefix {
+            s.push_str(&format!("{}", prefix));
+            s.push_str(" ");
+        }
+
+        s.push_str(&map_command_back(&self.command));
+
+        for (i, param) in self.params.iter().enumerate() {
+            if i == self.params.len() - 1 && (self._had_trailing || param.contains(' ') || param.starts_with(":")) {
+                s.push_str(" :");
+            } else {
+                s.push_str(" ");
+            }
+            s.push_str(param);
+        }
+
+        write!(f, "{}", s)
+    }
+}
+
+fn extract_tags(line: &str) -> Result<(IndexMap<String, String>, &str)> {
     if !line.starts_with("@") {
-        return Ok((HashMap::new(), line));
+        return Ok((IndexMap::new(), line));
     }
 
     let (tag_string, rest) = if let Some(end_pos) = line.find(" ") {
@@ -69,7 +137,7 @@ fn extract_tags(line: &str) -> Result<(HashMap<String, String>, &str)> {
         (&line[1..], "")
     };
 
-    let mut tags = HashMap::new();
+    let mut tags = IndexMap::new();
 
     for part in tag_string.split(";") {
         if let Some((key, value)) = part.split_once("=") {
@@ -177,6 +245,8 @@ fn map_command(cmd: &str) -> Result<Command> {
         "002" | "003" | "004" | "375" | "372" | "376" => Ok(Command::Misc(cmd.into())),
         "353" => Ok(Command::Names),
         "366" => Ok(Command::EndOfNames),
+        "PING" => Ok(Command::Ping),
+        "PONG" => Ok(Command::Pong),
         "PRIVMSG" => Ok(Command::Privmsg),
         "NOTICE" => Ok(Command::Notice),
         "JOIN" => Ok(Command::Join),
@@ -186,6 +256,25 @@ fn map_command(cmd: &str) -> Result<Command> {
         "USERSTATE" => Ok(Command::UserState),
         "ROOMSTATE" => Ok(Command::RoomState),
         _ => Err(ParseError::UnknownCommand(cmd.to_string()))
+    }
+}
+
+fn map_command_back(cmd: &Command) -> String {
+    match cmd {
+        Command::Misc(v) => v.into(),
+        Command::Ready => "001".into(),
+        Command::Names => "353".into(),
+        Command::EndOfNames => "366".into(),
+        Command::Ping => "PING".into(),
+        Command::Pong => "PONG".into(),
+        Command::Privmsg => "PRIVMSG".into(),
+        Command::Notice => "NOTICE".into(),
+        Command::Join => "JOIN".into(),
+        Command::Part => "PART".into(),
+        Command::Cap => "CAP".into(),
+        Command::GlobalUserState => "GLOBALUSERSTATE".into(),
+        Command::UserState => "USERSTATE".into(),
+        Command::RoomState => "ROOMSTATE".into(),
     }
 }
 
