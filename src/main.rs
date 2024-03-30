@@ -4,7 +4,7 @@ fn main() {
     dotenv::dotenv().ok();
     //let token = std::env::var("OAUTH_TOKEN").expect("OAUTH_TOKEN is missing!");
 
-    let msg_result = irc::protocol::parse_line(&":amc PRIVMSG #channel :Hello World".into());
+    let msg_result = irc::protocol::parse_line(&":nick!user@host PRIVMSG #channel :Hello World");
 
     match msg_result {
         Ok(msg) => {
