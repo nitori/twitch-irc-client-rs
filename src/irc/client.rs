@@ -62,7 +62,7 @@ impl Client {
                                 }
                                 Command::Privmsg if msg.params.len() == 2 && msg.prefix.as_ref().is_some_and(|p| p.nick.is_some()) => {
                                     println!("{} <{}> {}", msg.params[0], msg.display_name().unwrap(), msg.params[1]);
-                                    println!("tags: {:#?}", msg.tags);
+                                    //println!("tags: {:#?}", msg.tags);
                                 }
                                 _ => ()
                             }
