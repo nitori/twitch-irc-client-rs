@@ -9,7 +9,7 @@ pub enum ParseError {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Command {
     Ready,
     Privmsg,
@@ -66,6 +66,8 @@ fn extract_prefix(line: &str) -> Result<(Option<Prefix>, &str)> {
 fn extract_command(line: &str) -> Result<(Command, &str)> {
     if let Some((cmd, rest)) = line.split_once(" ") {
         Ok((map_command(cmd)?, rest))
+    } else if line.len() > 0 {
+        Ok((map_command(line)?, ""))
     } else {
         Err(MissingCommand)
     }
@@ -89,7 +91,11 @@ fn extract_params(line: &str) -> Result<(Vec<String>, bool, &str)> {
 }
 
 fn to_params(param_string: &str, trailing: Option<&str>) -> Vec<String> {
-    let mut params = param_string.split(" ").map(|s| s.into()).collect::<Vec<String>>();
+    let mut params = if param_string.is_empty() {
+        vec![]
+    } else {
+        param_string.split(" ").map(|s| s.into()).collect::<Vec<String>>()
+    };
     if trailing.is_some() {
         params.push(trailing.unwrap().into());
     }
@@ -123,3 +129,91 @@ fn map_command(cmd: &str) -> Result<Command> {
         _ => Err(ParseError::UnknownCommand(cmd.to_string()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_privmsg() {
+        let line = ":nick!user@host PRIVMSG #channel :Hello World!";
+        let result = parse_line(line);
+        assert!(result.is_ok());
+
+        let msg = result.unwrap();
+        assert!(msg.prefix.is_some());
+
+        let prefix = msg.prefix.unwrap();
+        assert!(prefix.nick.is_some());
+
+        assert_eq!(prefix.nick.unwrap(), "nick");
+        assert_eq!(prefix.user.unwrap(), "user");
+        assert_eq!(prefix.host.unwrap(), "host");
+
+
+        assert_eq!(msg.command, Command::Privmsg);
+        assert_eq!(msg.params, vec!["#channel", "Hello World!"]);
+    }
+
+    #[test]
+    fn test_no_prefix() {
+        let line = "PRIVMSG #channel :Hello World!";
+        let result = parse_line(line);
+        assert!(result.is_ok());
+
+        let msg = result.unwrap();
+        assert!(msg.prefix.is_none());
+
+        assert_eq!(msg.command, Command::Privmsg);
+        assert_eq!(msg.params, vec!["#channel", "Hello World!"]);
+    }
+
+    #[test]
+    fn test_command_only() {
+        let line = "PRIVMSG";
+        let result = parse_line(line);
+        assert!(result.is_ok());
+
+        let msg = result.unwrap();
+        assert!(msg.prefix.is_none());
+
+        assert_eq!(msg.command, Command::Privmsg);
+        assert_eq!(msg.params.len(), 0);
+    }
+
+    #[test]
+    fn test_command_and_trailing() {
+        let line = "PRIVMSG :Hello World!";
+        let result = parse_line(line);
+        assert!(result.is_ok());
+
+        let msg = result.unwrap();
+        assert!(msg.prefix.is_none());
+
+        assert_eq!(msg.command, Command::Privmsg);
+        assert_eq!(msg.params.len(), 1);
+        assert_eq!(msg.params, vec!["Hello World!"]);
+    }
+
+    #[test]
+    fn test_command_and_params() {
+        let line = "PRIVMSG param1 param2";
+        let result = parse_line(line);
+        assert!(result.is_ok());
+
+        let msg = result.unwrap();
+        assert!(msg.prefix.is_none());
+
+        assert_eq!(msg.command, Command::Privmsg);
+        assert_eq!(msg.params.len(), 2);
+        assert_eq!(msg.params, vec!["param1", "param2"]);
+    }
+
+    #[test]
+    fn test_fail() {
+        let line = "";
+        let result = parse_line(line);
+        assert!(result.is_err());
+    }
+}
+
