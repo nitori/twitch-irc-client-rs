@@ -9,10 +9,17 @@ pub enum ParseError {
 
 #[derive(Debug, PartialEq)]
 pub enum Command {
+    Misc(String),
+    // 001
     Ready,
+    // 353
+    Names,
+    // 366
+    EndOfNames,
     Privmsg,
     Notice,
     Join,
+
 }
 
 #[derive(Debug)]
@@ -121,6 +128,9 @@ pub fn parse_line(line: &str) -> Result<Message> {
 fn map_command(cmd: &str) -> Result<Command> {
     match cmd {
         "001" => Ok(Command::Ready),
+        "002" | "003" | "004" | "375" | "372" | "376" => Ok(Command::Misc(cmd.into())),
+        "353" => Ok(Command::Names),
+        "366" => Ok(Command::EndOfNames),
         "PRIVMSG" => Ok(Command::Privmsg),
         "NOTICE" => Ok(Command::Notice),
         "JOIN" => Ok(Command::Join),
