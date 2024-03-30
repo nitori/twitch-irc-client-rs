@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 type Result<T> = std::result::Result<T, ParseError>;
 
 #[derive(Debug, PartialEq)]
@@ -19,7 +21,12 @@ pub enum Command {
     Privmsg,
     Notice,
     Join,
-
+    Part,
+    Cap,
+    // twitch specific
+    GlobalUserState,
+    UserState,
+    RoomState,
 }
 
 #[derive(Debug)]
@@ -31,11 +38,48 @@ pub struct Prefix {
 
 #[derive(Debug)]
 pub struct Message {
+    pub tags: HashMap<String, String>,
     pub prefix: Option<Prefix>,
     pub command: Command,
     pub params: Vec<String>,
     _had_trailing: bool,
     _original_line: String,
+}
+
+impl Message {
+    pub fn display_name(&self) -> Option<&String> {
+        if let Some(name) = self.tags.get("display-name") {
+            Some(name)
+        } else {
+            let prefix = self.prefix.as_ref().unwrap();
+            let nick = prefix.nick.as_ref().unwrap();
+            Some(nick)
+        }
+    }
+}
+
+fn extract_tags(line: &str) -> Result<(HashMap<String, String>, &str)> {
+    if !line.starts_with("@") {
+        return Ok((HashMap::new(), line));
+    }
+
+    let (tag_string, rest) = if let Some(end_pos) = line.find(" ") {
+        (&line[1..end_pos], &line[end_pos + 1..])
+    } else {
+        (&line[1..], "")
+    };
+
+    let mut tags = HashMap::new();
+
+    for part in tag_string.split(";") {
+        if let Some((key, value)) = part.split_once("=") {
+            tags.insert(key.into(), value.into());
+        } else {
+            tags.insert(part.into(), "".into());
+        }
+    }
+
+    Ok((tags, rest))
 }
 
 fn extract_prefix(line: &str) -> Result<(Option<Prefix>, &str)> {
@@ -111,11 +155,13 @@ fn to_params(param_string: &str, trailing: Option<&str>) -> Vec<String> {
 pub fn parse_line(line: &str) -> Result<Message> {
     let original_line: String = line.into();
 
+    let (tags, line) = extract_tags(line)?;
     let (prefix, line) = extract_prefix(line)?;
     let (command, line) = extract_command(line)?;
     let (params, had_trailing, _) = extract_params(line)?;
 
     Ok(Message {
+        tags,
         prefix,
         command,
         params,
@@ -134,6 +180,11 @@ fn map_command(cmd: &str) -> Result<Command> {
         "PRIVMSG" => Ok(Command::Privmsg),
         "NOTICE" => Ok(Command::Notice),
         "JOIN" => Ok(Command::Join),
+        "PART" => Ok(Command::Part),
+        "CAP" => Ok(Command::Cap),
+        "GLOBALUSERSTATE" => Ok(Command::GlobalUserState),
+        "USERSTATE" => Ok(Command::UserState),
+        "ROOMSTATE" => Ok(Command::RoomState),
         _ => Err(ParseError::UnknownCommand(cmd.to_string()))
     }
 }

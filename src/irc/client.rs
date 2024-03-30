@@ -29,7 +29,7 @@ impl Client {
         let mut stream = TcpStream::connect("irc.twitch.tv:6667").unwrap();
         let mut vbuf: Vec<u8> = vec![];
 
-        //stream.write("CAP REQ :twitch.tv/membership twitch.tv/tags twitch.tv/commands\r\n".as_bytes()).unwrap();
+        stream.write("CAP REQ :twitch.tv/membership twitch.tv/tags twitch.tv/commands\r\n".as_bytes()).unwrap();
         stream.write(format!("PASS {}\r\n", self.token.value).as_bytes()).unwrap();
         stream.write("NICK SaniSensei\r\n".as_bytes()).unwrap();
 
@@ -52,7 +52,8 @@ impl Client {
                                     stream.write("JOIN #bloodstainedvt\r\n".as_bytes()).unwrap();
                                 }
                                 Command::Privmsg if msg.params.len() == 2 && msg.prefix.as_ref().is_some_and(|p| p.nick.is_some()) => {
-                                    println!("<{}@{}> {}", msg.prefix.unwrap().nick.unwrap(), msg.params[0], msg.params[1])
+                                    println!("{} <{}> {}", msg.params[0], msg.display_name().unwrap(), msg.params[1]);
+                                    println!("tags: {:#?}", msg.tags);
                                 }
                                 _ => ()
                             }
