@@ -1,8 +1,6 @@
-use crate::irc::protocol::ParseError::MissingCommand;
-
 type Result<T> = std::result::Result<T, ParseError>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ParseError {
     UnknownCommand(String),
     MissingCommand,
@@ -59,7 +57,7 @@ fn extract_prefix(line: &str) -> Result<(Option<Prefix>, &str)> {
         Ok((Some(prefix), &line[end_pos + 1..]))
     } else {
         // if no space, it implies there is no command.
-        Err(MissingCommand)
+        Err(ParseError::MissingCommand)
     }
 }
 
@@ -69,7 +67,7 @@ fn extract_command(line: &str) -> Result<(Command, &str)> {
     } else if line.len() > 0 {
         Ok((map_command(line)?, ""))
     } else {
-        Err(MissingCommand)
+        Err(ParseError::MissingCommand)
     }
 }
 
@@ -210,10 +208,27 @@ mod tests {
     }
 
     #[test]
-    fn test_fail() {
+    fn test_empty_string() {
         let line = "";
         let result = parse_line(line);
         assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), ParseError::MissingCommand);
+    }
+
+    #[test]
+    fn test_prefix_no_command() {
+        let line = ":nick!user@host";
+        let result = parse_line(line);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), ParseError::MissingCommand);
+    }
+
+    #[test]
+    fn test_unknown_command() {
+        let line = "UNKNOWNCOMMAND";
+        let result = parse_line(line);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), ParseError::UnknownCommand("UNKNOWNCOMMAND".into()))
     }
 }
 
