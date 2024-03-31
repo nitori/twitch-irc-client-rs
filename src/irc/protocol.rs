@@ -8,6 +8,7 @@ pub enum ParseError {
     UnknownCommand(String),
     MissingCommand,
     InvalidEmoteString,
+    InvalidRange(usize, Option<usize>),
 }
 
 
@@ -154,8 +155,8 @@ impl Message {
         let mut last_end: usize = 0;
 
         for (emote, start, end) in emotes {
-            let text_part = &text[last_end..start];
-            let emote_part = &text[start..=end];
+            let text_part = text.get(last_end..start).ok_or_else(|| ParseError::InvalidRange(last_end, Some(start)))?;
+            let emote_part = text.get(start..=end).ok_or_else(|| ParseError::InvalidRange(start, Some(end + 1)))?;
             last_end = end + 1;
 
             if !text_part.is_empty() {
@@ -168,7 +169,7 @@ impl Message {
         }
 
         if last_end < text.len() {
-            let last_text_part = &text[last_end..];
+            let last_text_part = text.get(last_end..).ok_or_else(|| ParseError::InvalidRange(last_end, None))?;
             rich_parts.push(RichText::Text(last_text_part.into()));
         }
 
@@ -518,6 +519,23 @@ mod tests {
             emote: "SSSsss".into(),
         }));
         assert_eq!(emotes[4], RichText::Text(" yay \\o/".into()));
+    }
+
+    #[test]
+    fn test_emotes_invalid() {
+        let line = "@emotes=86:0-9 :nick!user@host PRIVMSG #channel :short";
+        let result = parse_line(line);
+        assert!(result.is_ok());
+        let msg = result.unwrap();
+        let emotes_result = msg.emotes();
+        assert!(emotes_result.is_err());
+
+        match emotes_result {
+            Ok(_) => assert!(false),
+            Err(e) => {
+                assert_eq!(e, ParseError::InvalidRange(0, Some(10)));
+            }
+        }
     }
 }
 
