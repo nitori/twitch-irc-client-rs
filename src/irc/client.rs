@@ -1,8 +1,9 @@
-use std::fmt;
+use std::{fmt, thread};
 use std::fmt::Formatter;
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use crate::irc::protocol::{Command, parse_line};
+use std::sync::mpsc::{channel, Receiver};
+use crate::irc::protocol::{Command, Message, parse_line};
 
 struct Secret {
     value: String,
@@ -18,6 +19,8 @@ impl fmt::Debug for Secret {
 pub struct Client {
     token: Secret,
     nickname: String,
+    receiver: Option<Receiver<Message>>,
+    pub stream: Option<TcpStream>,
 }
 
 
@@ -26,53 +29,77 @@ impl Client {
         Client {
             token: Secret { value: token.into() },
             nickname: nickname.into(),
+            receiver: None,
+            stream: None,
         }
     }
 
-    pub fn connect(&self) {
+    pub fn connect(&mut self) {
+        let (ts, tx) = channel::<Message>();
+        self.receiver = Some(tx);
+
         let mut stream = TcpStream::connect("irc.twitch.tv:6667").unwrap();
-        let mut vbuf: Vec<u8> = vec![];
+        self.stream = Some(stream.try_clone().unwrap());
 
         stream.write("CAP REQ :twitch.tv/membership twitch.tv/tags twitch.tv/commands\r\n".as_bytes()).unwrap();
         stream.write(format!("PASS {}\r\n", self.token.value).as_bytes()).unwrap();
         stream.write(format!("NICK {}\r\n", self.nickname).as_bytes()).unwrap();
 
+        thread::spawn(move || {
+            let mut vbuf: Vec<u8> = vec![];
+            loop {
+                let mut buf = [0u8; 1024];
+                let size = stream.read(&mut buf).unwrap();
+                let chunk = &buf[..size];
+                vbuf.extend(chunk);
 
-        loop {
-            let mut buf = [0u8; 1024];
-            let size = stream.read(&mut buf).unwrap();
-            let chunk = &buf[..size];
-            vbuf.extend(chunk);
-
-            while let Some((pos, _)) = vbuf.iter().enumerate().find(|(_, c)| **c == 10) {
-                let line_vec = vbuf[..pos].to_vec();
-                vbuf = vbuf[pos + 1..].to_vec();
-                if let Ok(line) = String::from_utf8(line_vec) {
-                    let final_line = line.trim_end_matches(|c| c == '\r' || c == '\n');
-                    match parse_line(final_line) {
-                        Ok(msg) => {
-                            match msg.command {
-                                Command::Ping => {
-                                    stream.write(
-                                        format!("{}", msg.with_command(Command::Pong)).as_bytes()
-                                    ).unwrap();
+                while let Some((pos, _)) = vbuf.iter().enumerate().find(|(_, c)| **c == 10) {
+                    let line_vec = vbuf[..pos].to_vec();
+                    vbuf = vbuf[pos + 1..].to_vec();
+                    if let Ok(line) = String::from_utf8(line_vec) {
+                        let final_line = line.trim_end_matches(|c| c == '\r' || c == '\n');
+                        match parse_line(final_line) {
+                            Ok(msg) => {
+                                match msg.command {
+                                    Command::Ping => {
+                                        stream.write(
+                                            format!("{}", msg.with_command(Command::Pong)).as_bytes()
+                                        ).unwrap();
+                                    }
+                                    _ => ts.send(msg).unwrap()
                                 }
-                                Command::Ready => {
-                                    stream.write("JOIN #bloodstainedvt\r\n".as_bytes()).unwrap();
-                                }
-                                Command::Privmsg if msg.params.len() == 2 && msg.prefix.as_ref().is_some_and(|p| p.nick.is_some()) => {
-                                    println!("{} <{}> {}", msg.params[0], msg.display_name().unwrap(), msg.params[1]);
-                                    //println!("tags: {:#?}", msg.tags);
-                                }
-                                _ => ()
                             }
-                        }
-                        Err(e) => {
-                            println!("Error: {:?} - {:?}", e, final_line);
+                            Err(e) => {
+                                println!("Error: {:?} - {:?}", e, final_line);
+                            }
                         }
                     }
                 }
             }
+        });
+    }
+
+    pub fn send_line(&self, line: &str) -> Result<(), std::io::Error> {
+        if let Some(mut stream) = self.stream.as_ref() {
+            stream.write(format!("{}\r\n", line).as_bytes())?;
+        }
+        Ok(())
+    }
+}
+
+pub trait StreamingIterator {
+    type Item;
+    fn stream_next(&mut self) -> Option<Self::Item>;
+}
+
+impl StreamingIterator for Client {
+    type Item = Message;
+
+    fn stream_next(&mut self) -> Option<Self::Item> {
+        if let Ok(msg) = self.receiver.as_ref().unwrap().recv() {
+            Some(msg)
+        } else {
+            None
         }
     }
 }
