@@ -132,10 +132,13 @@ impl Message {
         let parts = emotes_string.split('/').collect::<Vec<_>>();
         for part in parts {
             if let Some((emote, places)) = part.split_once(":") {
-                if let Some((start, end)) = places.split_once("-") {
-                    let start = start.parse::<usize>().map_err(|_| ParseError::InvalidEmoteString)?;
-                    let end = end.parse::<usize>().map_err(|_| ParseError::InvalidEmoteString)?;
-                    emotes.push((emote, start, end));
+                let places_parts = places.split(",");
+                for place in places_parts {
+                    if let Some((start, end)) = place.split_once("-") {
+                        let start = start.parse::<usize>().map_err(|_| ParseError::InvalidEmoteString)?;
+                        let end = end.parse::<usize>().map_err(|_| ParseError::InvalidEmoteString)?;
+                        emotes.push((emote, start, end));
+                    }
                 }
             }
         }
@@ -536,6 +539,27 @@ mod tests {
                 assert_eq!(e, ParseError::InvalidRange(0, Some(10)));
             }
         }
+    }
+
+    #[test]
+    fn test_emotes_repeat() {
+        let line = "@emotes=86:0-9,11-20 :nick!user@host PRIVMSG #channel :BibleThump BibleThump";
+        let result = parse_line(line);
+        assert!(result.is_ok());
+        let msg = result.unwrap();
+        let emotes_result = msg.emotes();
+        assert!(emotes_result.is_ok());
+        let emotes = emotes_result.unwrap();
+        assert_eq!(emotes.len(), 3);
+        assert_eq!(emotes[0], RichText::Emote(EmoteInfo {
+            id: "86".into(),
+            emote: "BibleThump".into(),
+        }));
+        assert_eq!(emotes[1], RichText::Text(" ".into()));
+        assert_eq!(emotes[2], RichText::Emote(EmoteInfo {
+            id: "86".into(),
+            emote: "BibleThump".into(),
+        }));
     }
 }
 
