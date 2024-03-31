@@ -29,6 +29,11 @@ fn main() {
             Command::EndOfNames => {
                 println!("Joined: {}", msg.params[1]);
             }
+            Command::UserNotice => {
+                if let Some(system_msg) = msg.tags.get("system-msg") {
+                    println!("System: {}", system_msg.replace("\\s", " "));
+                }
+            }
             _ => ()
         }
     }
