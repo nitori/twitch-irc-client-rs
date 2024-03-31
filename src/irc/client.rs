@@ -41,9 +41,9 @@ impl Client {
         let mut stream = TcpStream::connect("irc.twitch.tv:6667").unwrap();
         self.stream = Some(stream.try_clone().unwrap());
 
-        stream.write("CAP REQ :twitch.tv/membership twitch.tv/tags twitch.tv/commands\r\n".as_bytes()).unwrap();
-        stream.write(format!("PASS {}\r\n", self.token.value).as_bytes()).unwrap();
-        stream.write(format!("NICK {}\r\n", self.nickname).as_bytes()).unwrap();
+        self.send_line("CAP REQ :twitch.tv/membership twitch.tv/tags twitch.tv/commands").unwrap();
+        self.send_line(&format!("PASS {}\r\n", self.token.value)).unwrap();
+        self.send_line(&format!("NICK {}\r\n", self.nickname)).unwrap();
 
         thread::spawn(move || {
             let mut vbuf: Vec<u8> = vec![];
@@ -88,7 +88,7 @@ impl Client {
 }
 
 pub struct ClientIterator<'a> {
-    receiver: &'a Receiver<Message>
+    receiver: &'a Receiver<Message>,
 }
 
 impl<'a> Iterator for ClientIterator<'a> {
