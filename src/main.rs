@@ -7,10 +7,14 @@ fn main() {
     dotenv::dotenv().ok();
     let token = std::env::var("OAUTH_TOKEN").expect("OAUTH_TOKEN is missing!");
     let nickname = std::env::var("NICKNAME").expect("NICKNAME is missing!");
-    let mut channel = std::env::var("CHANNEL").expect("CHANNEL is missing!");
-    if !channel.starts_with("#") {
-        channel = format!("#{}", channel);
-    }
+    let channel_string = std::env::var("CHANNELS").expect("CHANNELS is missing!");
+    let channels = channel_string.split(",").map(|c| {
+        if c.starts_with("#") {
+            c.into()
+        } else {
+            format!("#{}", c)
+        }
+    }).collect::<Vec<String>>();
 
     let mut client = Client::new(&token, &nickname);
     client.connect();
@@ -18,7 +22,9 @@ fn main() {
     for msg in client.iter() {
         match msg.command {
             Command::Ready => {
-                client.send_line(&format!("JOIN {}", channel)).unwrap();
+                for channel in channels.iter() {
+                    client.send_line(&format!("JOIN {}", channel)).unwrap();
+                }
             }
             Command::Privmsg if msg.is_channel_message() => {
                 if let Ok(emotes) = msg.emotes() {
