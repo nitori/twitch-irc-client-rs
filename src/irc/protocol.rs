@@ -31,6 +31,7 @@ pub enum Command {
     GlobalUserState,
     UserState,
     RoomState,
+    UserNotice,
 }
 
 #[derive(Debug, Clone)]
@@ -332,6 +333,7 @@ fn map_command(cmd: &str) -> Result<Command> {
         "GLOBALUSERSTATE" => Ok(Command::GlobalUserState),
         "USERSTATE" => Ok(Command::UserState),
         "ROOMSTATE" => Ok(Command::RoomState),
+        "USERNOTICE" => Ok(Command::UserNotice),
         _ => Err(ParseError::UnknownCommand(cmd.to_string()))
     }
 }
@@ -352,6 +354,7 @@ fn map_command_back(cmd: &Command) -> String {
         Command::GlobalUserState => "GLOBALUSERSTATE".into(),
         Command::UserState => "USERSTATE".into(),
         Command::RoomState => "ROOMSTATE".into(),
+        Command::UserNotice => "USERNOTICE".into(),
     }
 }
 
