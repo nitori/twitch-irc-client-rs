@@ -1,4 +1,4 @@
-use irc::client::{Client, StreamingIterator};
+use irc::client::Client;
 use crate::irc::protocol::Command;
 
 mod irc;
@@ -9,7 +9,7 @@ fn main() {
     let mut client = Client::new(&token, &"SaniSensei");
     client.connect();
 
-    while let Some(msg) = client.stream_next() {
+    for msg in client.iter() {
         match msg.command {
             Command::Ready => {
                 client.send_line("JOIN #bloodstainedvt").unwrap();

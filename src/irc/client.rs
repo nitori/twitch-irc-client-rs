@@ -87,19 +87,26 @@ impl Client {
     }
 }
 
-pub trait StreamingIterator {
-    type Item;
-    fn stream_next(&mut self) -> Option<Self::Item>;
+pub struct ClientIterator<'a> {
+    receiver: &'a Receiver<Message>
 }
 
-impl StreamingIterator for Client {
+impl<'a> Iterator for ClientIterator<'a> {
     type Item = Message;
 
-    fn stream_next(&mut self) -> Option<Self::Item> {
-        if let Ok(msg) = self.receiver.as_ref().unwrap().recv() {
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Ok(msg) = self.receiver.recv() {
             Some(msg)
         } else {
             None
+        }
+    }
+}
+
+impl Client {
+    pub fn iter(&self) -> ClientIterator {
+        ClientIterator {
+            receiver: self.receiver.as_ref().unwrap(),
         }
     }
 }
