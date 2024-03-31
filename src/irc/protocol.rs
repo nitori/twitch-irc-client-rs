@@ -69,6 +69,18 @@ pub struct Message {
     _original_line: String,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct EmoteInfo {
+    pub id: String,
+    pub emote: String,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum RichText {
+    Text(String),
+    Emote(EmoteInfo),
+}
+
 impl Message {
     pub fn display_name(&self) -> Option<&String> {
         if let Some(name) = self.tags.get("display-name") {
@@ -101,6 +113,58 @@ impl Message {
             _had_trailing: self._had_trailing,
             _original_line: self._original_line.clone(),
         }
+    }
+
+    pub fn emotes(&self) -> Vec<RichText> {
+        if !self.is_channel_message() {
+            return vec![];
+        }
+
+        let emotes_string = match self.tags.get("emotes") {
+            None => return vec![],
+            Some(s) => s
+        };
+
+        let mut emotes: Vec<(&str, usize, usize)> = vec![];
+        let parts = emotes_string.split('/').collect::<Vec<_>>();
+        for part in parts {
+            if let Some((emote, places)) = part.split_once(":") {
+                if let Some((start, end)) = places.split_once("-") {
+                    let start = start.parse::<usize>().unwrap();
+                    let end = end.parse::<usize>().unwrap();
+                    emotes.push((emote, start, end));
+                }
+            }
+        }
+
+        // not sure if emotes are guaranteed to be sorted, but just to be safe.
+        emotes.sort_by(|a, b| a.1.cmp(&b.1));
+
+        let mut rich_parts: Vec<RichText> = vec![];
+
+        let text = self.params[1].as_str();
+        let mut last_end: usize = 0;
+
+        for (emote, start, end) in emotes {
+            let text_part = &text[last_end..start];
+            let emote_part = &text[start..=end];
+            last_end = end + 1;
+
+            if !text_part.is_empty() {
+                rich_parts.push(RichText::Text(text_part.into()));
+            }
+            rich_parts.push(RichText::Emote(EmoteInfo {
+                id: emote.into(),
+                emote: emote_part.into(),
+            }))
+        }
+
+        if last_end < text.len() {
+            let last_text_part = &text[last_end..];
+            rich_parts.push(RichText::Text(last_text_part.into()));
+        }
+
+        rich_parts
     }
 }
 
@@ -391,6 +455,53 @@ mod tests {
         let result = parse_line(line);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), ParseError::UnknownCommand("UNKNOWNCOMMAND".into()))
+    }
+
+    #[test]
+    fn test_emotes_none() {
+        let line = "@emotes= :nick!user@host PRIVMSG #channel :nothing";
+        let result = parse_line(line);
+        assert!(result.is_ok());
+        let msg = result.unwrap();
+        let emotes = msg.emotes();
+        assert_eq!(emotes.len(), 1);
+        assert_eq!(emotes[0], RichText::Text("nothing".into()));
+    }
+
+    #[test]
+    fn test_emotes_single() {
+        let line = "@emotes=86:0-9 :nick!user@host PRIVMSG #channel :BibleThump";
+        let result = parse_line(line);
+        assert!(result.is_ok());
+        let msg = result.unwrap();
+        let emotes = msg.emotes();
+        assert_eq!(emotes.len(), 1);
+        assert_eq!(emotes[0], RichText::Emote(EmoteInfo {
+            id: "86".into(),
+            emote: "BibleThump".into(),
+        }));
+    }
+
+    #[test]
+    fn test_emotes_mixed() {
+        let line = "@emotes=86:10-19/46:38-43 :nick!user@host PRIVMSG #channel :This is a BibleThump test with emotes SSSsss yay \\o/";
+        let result = parse_line(line);
+        assert!(result.is_ok());
+        let msg = result.unwrap();
+        let emotes = msg.emotes();
+        assert_eq!(emotes.len(), 5);
+
+        assert_eq!(emotes[0], RichText::Text("This is a ".into()));
+        assert_eq!(emotes[1], RichText::Emote(EmoteInfo {
+            id: "86".into(),
+            emote: "BibleThump".into(),
+        }));
+        assert_eq!(emotes[2], RichText::Text(" test with emotes ".into()));
+        assert_eq!(emotes[3], RichText::Emote(EmoteInfo {
+            id: "46".into(),
+            emote: "SSSsss".into(),
+        }));
+        assert_eq!(emotes[4], RichText::Text(" yay \\o/".into()));
     }
 }
 
