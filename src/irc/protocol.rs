@@ -117,7 +117,7 @@ impl Message {
         }
     }
 
-    pub fn emotes(&self) -> Result<Vec<RichText>> {
+    fn emote_tuples(&self) -> Result<Vec<(&str, usize, usize)>> {
         if !self.is_channel_message() {
             return Ok(vec![]);
         }
@@ -141,6 +141,12 @@ impl Message {
 
         // not sure if emotes are guaranteed to be sorted, but just to be safe.
         emotes.sort_by(|a, b| a.1.cmp(&b.1));
+
+        Ok(emotes)
+    }
+
+    pub fn emotes(&self) -> Result<Vec<RichText>> {
+        let emotes = self.emote_tuples()?;
 
         let mut rich_parts: Vec<RichText> = vec![];
 
