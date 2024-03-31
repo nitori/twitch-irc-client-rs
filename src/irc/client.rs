@@ -47,32 +47,56 @@ impl Client {
 
         thread::spawn(move || {
             let mut vbuf: Vec<u8> = vec![];
-            loop {
-                let mut buf = [0u8; 1024];
-                let size = stream.read(&mut buf).unwrap();
-                let chunk = &buf[..size];
+            'mainloop: loop {
+                let mut buf = [0u8; 8096];
+                let chunk;
+                match stream.read(&mut buf) {
+                    Ok(size) => {
+                        if size == 0 {
+                            println!("Stream read returned 0 bytes");
+                            break 'mainloop;
+                        }
+                        chunk = &buf[..size];
+                    }
+                    Err(e) => {
+                        println!("Failed to read from stream {:?}", e);
+                        break 'mainloop;
+                    }
+                }
                 vbuf.extend(chunk);
 
                 while let Some((pos, _)) = vbuf.iter().enumerate().find(|(_, c)| **c == 10) {
                     let line_vec = vbuf[..pos].to_vec();
                     vbuf = vbuf[pos + 1..].to_vec();
-                    if let Ok(line) = String::from_utf8(line_vec) {
+                    if let Ok(line) = String::from_utf8(line_vec.clone()) {
                         let final_line = line.trim_end_matches(|c| c == '\r' || c == '\n');
                         match parse_line(final_line) {
                             Ok(msg) => {
                                 match msg.command {
                                     Command::Ping => {
-                                        stream.write(
-                                            format!("{}", msg.with_command(Command::Pong)).as_bytes()
-                                        ).unwrap();
+                                        println!("Ping? Pong!");
+                                        let write_result = stream.write(
+                                            format!("{}\r\n", msg.with_command(Command::Pong)).as_bytes()
+                                        );
+                                        if let Err(e) = write_result {
+                                            println!("Error writing to stream {:?}", e);
+                                            break 'mainloop;
+                                        }
                                     }
-                                    _ => ts.send(msg).unwrap()
+                                    _ => {
+                                        if let Err(e) = ts.send(msg) {
+                                            println!("Error sending to channel {:?}", e);
+                                            break 'mainloop;
+                                        }
+                                    }
                                 }
                             }
                             Err(e) => {
                                 println!("Error: {:?} - {:?}", e, final_line);
                             }
                         }
+                    } else {
+                        println!("*** Couldn't parse line {:?}", line_vec);
                     }
                 }
             }
