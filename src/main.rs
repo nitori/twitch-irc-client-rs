@@ -14,9 +14,11 @@ fn main() {
             Command::Ready => {
                 client.send_line("JOIN #bloodstainedvt").unwrap();
             }
-            Command::Privmsg if msg.params.len() == 2 && msg.prefix.as_ref().is_some_and(|p| p.nick.is_some()) => {
+            Command::Privmsg if msg.is_channel_message() => {
                 println!("{} <{}> {}", msg.params[0], msg.display_name().unwrap(), msg.params[1]);
-                //println!("tags: {:#?}", msg.tags);
+            }
+            Command::Privmsg if msg.is_private_message() => {
+                println!("(private) <{}> {}", msg.display_name().unwrap(), msg.params[1]);
             }
             Command::Names => {
                 println!("Joined: {}", msg.params[2]);

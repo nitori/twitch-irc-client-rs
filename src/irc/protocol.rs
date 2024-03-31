@@ -80,6 +80,18 @@ impl Message {
         }
     }
 
+    pub fn is_valid_privmsg(&self) -> bool {
+        return self.params.len() == 2 && self.prefix.as_ref().is_some_and(|p| p.nick.is_some());
+    }
+
+    pub fn is_channel_message(&self) -> bool {
+        return self.is_valid_privmsg() && self.params[0].starts_with("#");
+    }
+
+    pub fn is_private_message(&self) -> bool {
+        return self.is_valid_privmsg() && !self.params[0].starts_with("#");
+    }
+
     pub fn with_command(&self, new_command: Command) -> Message {
         Message {
             tags: self.tags.clone(),
