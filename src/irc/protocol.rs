@@ -7,6 +7,7 @@ type Result<T> = std::result::Result<T, ParseError>;
 pub enum ParseError {
     UnknownCommand(String),
     MissingCommand,
+    InvalidEmoteString,
 }
 
 
@@ -115,13 +116,13 @@ impl Message {
         }
     }
 
-    pub fn emotes(&self) -> Vec<RichText> {
+    pub fn emotes(&self) -> Result<Vec<RichText>> {
         if !self.is_channel_message() {
-            return vec![];
+            return Ok(vec![]);
         }
 
         let emotes_string = match self.tags.get("emotes") {
-            None => return vec![],
+            None => return Ok(vec![]),
             Some(s) => s
         };
 
@@ -130,8 +131,8 @@ impl Message {
         for part in parts {
             if let Some((emote, places)) = part.split_once(":") {
                 if let Some((start, end)) = places.split_once("-") {
-                    let start = start.parse::<usize>().unwrap();
-                    let end = end.parse::<usize>().unwrap();
+                    let start = start.parse::<usize>().map_err(|_| ParseError::InvalidEmoteString)?;
+                    let end = end.parse::<usize>().map_err(|_| ParseError::InvalidEmoteString)?;
                     emotes.push((emote, start, end));
                 }
             }
@@ -164,7 +165,7 @@ impl Message {
             rich_parts.push(RichText::Text(last_text_part.into()));
         }
 
-        rich_parts
+        Ok(rich_parts)
     }
 }
 
