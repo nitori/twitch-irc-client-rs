@@ -467,7 +467,9 @@ mod tests {
         let result = parse_line(line);
         assert!(result.is_ok());
         let msg = result.unwrap();
-        let emotes = msg.emotes();
+        let emotes_result = msg.emotes();
+        assert!(emotes_result.is_ok());
+        let emotes = emotes_result.unwrap();
         assert_eq!(emotes.len(), 1);
         assert_eq!(emotes[0], RichText::Text("nothing".into()));
     }
@@ -478,7 +480,9 @@ mod tests {
         let result = parse_line(line);
         assert!(result.is_ok());
         let msg = result.unwrap();
-        let emotes = msg.emotes();
+        let emotes_result = msg.emotes();
+        assert!(emotes_result.is_ok());
+        let emotes = emotes_result.unwrap();
         assert_eq!(emotes.len(), 1);
         assert_eq!(emotes[0], RichText::Emote(EmoteInfo {
             id: "86".into(),
@@ -492,7 +496,9 @@ mod tests {
         let result = parse_line(line);
         assert!(result.is_ok());
         let msg = result.unwrap();
-        let emotes = msg.emotes();
+        let emotes_result = msg.emotes();
+        assert!(emotes_result.is_ok());
+        let emotes = emotes_result.unwrap();
         assert_eq!(emotes.len(), 5);
 
         assert_eq!(emotes[0], RichText::Text("This is a ".into()));
