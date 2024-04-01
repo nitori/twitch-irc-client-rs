@@ -35,8 +35,8 @@ impl Client {
     }
 
     pub fn connect(&mut self) {
-        let (ts, tx) = channel::<Message>();
-        self.receiver = Some(tx);
+        let (sender, receiver) = channel::<Message>();
+        self.receiver = Some(receiver);
 
         let mut stream = TcpStream::connect("irc.twitch.tv:6667").unwrap();
         self.stream = Some(stream.try_clone().unwrap());
@@ -84,7 +84,7 @@ impl Client {
                                         }
                                     }
                                     _ => {
-                                        if let Err(e) = ts.send(msg) {
+                                        if let Err(e) = sender.send(msg) {
                                             println!("Error sending to channel {:?}", e);
                                             break 'mainloop;
                                         }
