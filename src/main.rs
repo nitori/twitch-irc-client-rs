@@ -2,6 +2,7 @@ use std::fs::{OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
 use irc::client::Client;
 use crate::irc::protocol::{Command, RichText};
+use crate::irc::utils::Color;
 
 mod irc;
 
@@ -48,6 +49,16 @@ fn main() {
                 }
             }
             Command::Privmsg if msg.is_channel_message() => {
+                let display_name = msg.display_name().unwrap();
+                let colored_name = if let Some(hex) = msg.tags.get("color") {
+                    match Color::from_string(hex) {
+                        Ok(color) => color.wrap_ansi(display_name),
+                        Err(_) => display_name.into()
+                    }
+                } else {
+                    display_name.into()
+                };
+
                 if let Ok(emotes) = msg.emotes() {
                     let text_items = emotes.iter().map(|e| {
                         match e {
@@ -62,9 +73,9 @@ fn main() {
                         }
                     }).collect::<Vec<String>>();
                     let text_message = text_items.join("");
-                    println!("{} <{}> {}", msg.params[0], msg.display_name().unwrap(), text_message);
+                    println!("{} <{}> {}", msg.params[0], colored_name, text_message);
                 } else {
-                    println!("{} <{}> {}", msg.params[0], msg.display_name().unwrap(), msg.params[1]);
+                    println!("{} <{}> {}", msg.params[0], colored_name, msg.params[1]);
                 }
             }
             Command::Privmsg if msg.is_private_message() => {
