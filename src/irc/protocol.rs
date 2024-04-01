@@ -438,6 +438,18 @@ mod tests {
     }
 
     #[test]
+    fn test_command_ping_pong() {
+        let line = "PING :tmi.twitch.tv";
+        let result = parse_line(line);
+        assert!(result.is_ok());
+        let msg = result.unwrap();
+
+        // ensure the ":" is preserved, when converting PING to PONG.
+        let pong_line = format!("{}", msg.with_command(Command::Pong));
+        assert_eq!(pong_line, "PONG :tmi.twitch.tv");
+    }
+
+    #[test]
     fn test_command_and_params() {
         let line = "PRIVMSG param1 param2";
         let result = parse_line(line);
