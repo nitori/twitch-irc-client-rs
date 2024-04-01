@@ -85,6 +85,10 @@ pub enum RichText {
 }
 
 impl Message {
+    pub fn original_line(&self) -> String {
+        self._original_line.clone()
+    }
+
     pub fn display_name(&self) -> Option<&String> {
         if let Some(name) = self.tags.get("display-name") {
             Some(name)

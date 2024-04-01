@@ -1,3 +1,5 @@
+use std::fs::{OpenOptions};
+use std::io::{Seek, SeekFrom, Write};
 use irc::client::Client;
 use crate::irc::protocol::{Command, RichText};
 
@@ -16,10 +18,29 @@ fn main() {
         }
     }).collect::<Vec<String>>();
 
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open("logs.txt").unwrap();
+
+    file.seek(SeekFrom::End(0)).unwrap();
+    file.write("----------------\n".as_bytes()).unwrap();
+    file.write("- Reconnecting -\n".as_bytes()).unwrap();
+    file.write("----------------\n".as_bytes()).unwrap();
+
     let mut client = Client::new(&token, &nickname);
     client.connect();
 
     for msg in client.iter() {
+        match msg.command {
+            Command::Part => {}
+            Command::Join => {}
+            _ => {
+                file.write(msg.original_line().as_bytes()).unwrap();
+                file.write("\n".as_bytes()).unwrap();
+            }
+        }
         match msg.command {
             Command::Ready => {
                 for channel in channels.iter() {
